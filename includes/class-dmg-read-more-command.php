@@ -1,4 +1,5 @@
 <?php
+
 /**
  * WP-CLI command for DMG Read More functionality.
  *
@@ -6,14 +7,15 @@
  */
 
 // Exit if accessed directly.
-if ( ! defined( 'ABSPATH' ) ) {
+if (! defined('ABSPATH')) {
 	exit;
 }
 
 /**
  * DMG Read More WP-CLI Command class.
  */
-class DMG_Read_More_Command {
+class DMG_Read_More_Command
+{
 
 	/**
 	 * Search for posts.
@@ -37,24 +39,29 @@ class DMG_Read_More_Command {
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 */
-	public function search( $args, $assoc_args ) {
-		$search_term = isset( $args[0] ) ? $args[0] : '';
-		$post_type   = isset( $assoc_args['post-type'] ) ? $assoc_args['post-type'] : 'post';
-		$limit       = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 10;
+	public function search($args, $assoc_args)
+	{
+		$search_term = isset($args[0]) ? $args[0] : '';
+		$post_type   = isset($assoc_args['post-type']) ? $assoc_args['post-type'] : 'post';
+		$limit       = isset($assoc_args['limit']) ? absint($assoc_args['limit']) : 10;
 
-		if ( empty( $search_term ) ) {
-			WP_CLI::error( 'Please provide a search term.' );
+		if (empty($search_term)) {
+			WP_CLI::error('Please provide a search term.');
 			return;
 		}
 
-		$post_ids = $this->search_posts( $search_term, $post_type, $limit );
+		try {
+			$post_ids = $this->search_posts($search_term, $post_type, $limit);
 
-		if ( empty( $post_ids ) ) {
-			WP_CLI::warning( 'No posts found.' );
-			return;
+			if (empty($post_ids)) {
+				WP_CLI::warning('No posts found.');
+				return;
+			}
+
+			WP_CLI::log(join(',', $post_ids));
+		} catch (\Exception $exception) {
+			WP_CLI::error($exception->getMessage());
 		}
-
-		WP_CLI::log( join( ',', $post_ids ) );
 	}
 
 	/**
@@ -65,27 +72,25 @@ class DMG_Read_More_Command {
 	 * @param int    $limit       Maximum number of results.
 	 * @return array Array of post IDs.
 	 */
-	public function search_posts( $search_term, $post_type = 'post', $limit = 10 ) {
+	public function search_posts($search_term, $post_type = 'post', $limit = 10)
+	{
 		$query_args = array(
 			's'              => $search_term,
 			'post_type'      => $post_type,
 			'posts_per_page' => $limit,
 			'post_status'    => 'publish',
+			'no_found_rows' => true,
+			'fields' => 'ids',
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false
 		);
 
-		$query = new WP_Query( $query_args );
+		$query = new WP_Query($query_args);
 
-		$post_ids = array();
-
-		if ( $query->have_posts() ) {
-			while ( $query->have_posts() ) {
-				$query->the_post();
-				$post_ids[] = get_the_ID();
-			}
+		if ($query->have_posts()) {
+			return $query->posts;
 		}
 
-		wp_reset_postdata();
-
-		return $post_ids;
+		return [];
 	}
 }

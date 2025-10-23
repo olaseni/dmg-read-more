@@ -27,7 +27,11 @@ define( 'WP_SEARCH_POSTS_VERSION', '1.0.0' );
  * Plugin initialization.
  */
 function wp_search_posts_init() {
-	// Add your plugin initialization code here
+	// Register WP-CLI command if WP-CLI is available
+	if ( defined( 'WP_CLI' ) && WP_CLI ) {
+		require_once plugin_dir_path( __FILE__ ) . 'includes/class-dmg-read-more-command.php';
+		WP_CLI::add_command( 'dmg-read-more', 'DMG_Read_More_Command' );
+	}
 }
 add_action( 'plugins_loaded', 'wp_search_posts_init' );
 

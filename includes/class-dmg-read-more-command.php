@@ -22,7 +22,7 @@ class DMG_Read_More_Command {
 	 * ## OPTIONS
 	 *
 	 * [<search-term>]
-	 * : The term to search for in posts.
+	 * : The term to search for in posts. If omitted, matches all posts.
 	 *
 	 * [--post-type=<post-type>]
 	 * : The post type to search. Default: post
@@ -38,9 +38,10 @@ class DMG_Read_More_Command {
 	 *
 	 * ## EXAMPLES
 	 *
+	 *     wp dmg-read-more search
 	 *     wp dmg-read-more search "hello world"
 	 *     wp dmg-read-more search "hello" --post-type=page --limit=5
-	 *     wp dmg-read-more search "hello" --date-after=2024-01-01 --date-before=2024-12-31
+	 *     wp dmg-read-more search --date-after=2024-01-01 --date-before=2024-12-31
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -54,12 +55,6 @@ class DMG_Read_More_Command {
 		// Default to last 30 days if dates not provided
 		$date_after  = $assoc_args['date-after'] ?? \date( 'Y-m-d', \strtotime( '-30 days' ) );
 		$date_before = $assoc_args['date-before'] ?? \date( 'Y-m-d' );
-
-		// Validate search term
-		if ( empty( $search_term ) ) {
-			\WP_CLI::error( 'Please provide a search term.' );
-			return;
-		}
 
 		// Validate limit
 		if ( $limit < 1 ) {
@@ -116,7 +111,6 @@ class DMG_Read_More_Command {
 	 */
 	public function search_posts( string $search_term, string $post_type = 'post', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
-			's'                      => $search_term,
 			'post_type'              => $post_type,
 			'posts_per_page'         => $limit,
 			'post_status'            => 'publish',
@@ -125,6 +119,11 @@ class DMG_Read_More_Command {
 			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
 		];
+
+		// Add search term if provided
+		if ( ! empty( $search_term ) ) {
+			$query_args['s'] = $search_term;
+		}
 
 		// Add date query if dates are provided
 		if ( $date_after || $date_before ) {

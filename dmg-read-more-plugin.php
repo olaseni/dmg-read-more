@@ -4,8 +4,8 @@
  * Plugin URI:        https://github.com/olaseni/dmg-read-more
  * Description:       A plugin that adds a Gutenberg block for inserting post links and a WP-CLI command for searching posts which contain these blocks
  * Version:           1.0.0
- * Requires at least: 5.8
- * Requires PHP:      7.4
+ * Requires at least: 6.8.3
+ * Requires PHP:      8.3
  * Author:            Olaseni Oluwunmi
  * Author URI:        https://github.com/olaseni
  * Text Domain:       dmg-read-more

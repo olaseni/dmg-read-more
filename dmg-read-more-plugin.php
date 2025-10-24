@@ -30,59 +30,11 @@ function dmg_read_more_init() {
 		WP_CLI::add_command( 'dmg-read-more', 'DMG_Read_More_Command' );
 	}
 
-	// Register Gutenberg block
-	register_block_type(
-		$plugin_root_path . '/build/dmg-read-more',
-		array(
-			'render_callback' => 'dmg_read_more_render_block',
-		)
-	);
+	// Initialize block handler
+	require_once $plugin_root_path . 'includes/class-dmg-read-more-block.php';
+	new DMG_Read_More_Block();
 }
-add_action( 'init', 'dmg_read_more_init' );
-
-/**
- * Render callback for search posts block.
- *
- * @param array $attributes Block attributes.
- * @return string Block HTML output.
- */
-function dmg_read_more_render_block( $attributes ) {
-	$search_term = isset( $attributes['searchTerm'] ) ? sanitize_text_field( $attributes['searchTerm'] ) : '';
-
-	if ( empty( $search_term ) ) {
-		return '<div class="wp-block-wp-search-posts-dmg-search-posts"><p>' . esc_html__( 'Please enter a search term in the block settings.', 'wp-search-posts' ) . '</p></div>';
-	}
-
-	$query_args = array(
-		's'              => $search_term,
-		'post_type'      => 'any',
-		'posts_per_page' => -1,
-		'post_status'    => 'publish',
-	);
-
-	$query = new WP_Query( $query_args );
-
-	if ( ! $query->have_posts() ) {
-		return '<div class="wp-block-wp-search-posts-dmg-search-posts"><p>' . esc_html__( 'No posts found.', 'wp-search-posts' ) . '</p></div>';
-	}
-
-	ob_start();
-	?>
-	<div class="wp-block-wp-search-posts-dmg-search-posts">
-		<ul class="wp-search-posts-list">
-			<?php while ( $query->have_posts() ) : $query->the_post(); ?>
-				<li>
-					<a href="<?php echo esc_url( get_permalink() ); ?>">
-						<?php echo esc_html( get_the_title() ); ?>
-					</a>
-				</li>
-			<?php endwhile; ?>
-		</ul>
-	</div>
-	<?php
-	wp_reset_postdata();
-	return ob_get_clean();
-}
+add_action( 'plugins_loaded', 'dmg_read_more_init' );
 
 /**
  * Activation hook.

@@ -3,6 +3,7 @@
     "start": "wp-env start --update",
     "stop": "wp-env stop",
     "build:blocks": "wp-scripts build --webpack-src-dir=blocks",
+    "cli:search": "wp-env run cli wp dmg-read-more search",
     "clean": "rm -fr node_modules",
     "clean:builds": "rm -fr build"
   },

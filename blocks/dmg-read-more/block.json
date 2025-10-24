@@ -6,13 +6,24 @@
   "category": "widgets",
   "icon": "search",
   "description": "Search for and display the link of any post, page or any content type with a prompt to 'read more'.",
-  "keywords": ["read", "more"],
+  "keywords": [
+    "read",
+    "more"
+  ],
   "textdomain": "dmg-read-more",
+  "example": {
+    "attributes": {}
+  },
   "editorScript": "file:./index.js",
+  "style": "file:./style-index.css",
   "attributes": {
-    "searchTerm": {
-      "type": "string",
-      "default": ""
+    "postId": {
+      "type": "number",
+      "default": 0
+    },
+    "postsPerPage": {
+      "type": "number",
+      "default": 10
     }
   },
   "supports": {

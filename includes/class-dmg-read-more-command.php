@@ -19,29 +19,43 @@ class DMG_Read_More_Command {
 	/**
 	 * Search for posts containing DMG Read More blocks.
 	 *
+	 * Finds posts that contain the DMG Read More Gutenberg block. When a search
+	 * term is provided, only returns posts that BOTH contain the block AND match
+	 * the search term. Uses indexed lookups for optimal performance at scale.
+	 *
 	 * ## OPTIONS
 	 *
 	 * [<search-term>]
-	 * : The term to search for in posts. If omitted, matches all posts containing the block.
+	 * : Search term to filter posts by title/content/excerpt. When provided, only returns posts containing BOTH the search term AND the block. When omitted, returns all posts with the block.
 	 *
 	 * [--post-type=<post-type>]
-	 * : The post type to search. If omitted, searches across all post types.
+	 * : Post type to search. When omitted, searches across all public post types.
 	 *
 	 * [--limit=<number>]
-	 * : Maximum number of results to return. Default: 100
+	 * : Maximum number of post IDs to return. Default: 100
 	 *
 	 * [--date-after=<date>]
-	 * : Only include posts after this date (Y-m-d format). Default: 30 days ago
+	 * : Only include posts published after this date (Y-m-d format). Default: 30 days ago
 	 *
 	 * [--date-before=<date>]
-	 * : Only include posts before this date (Y-m-d format). Default: today
+	 * : Only include posts published before this date (Y-m-d format). Default: today
 	 *
 	 * ## EXAMPLES
 	 *
+	 *     # List all posts with the DMG Read More block (last 30 days)
 	 *     wp dmg-read-more search
+	 *
+	 *     # Find posts containing "hello" that also have the block
 	 *     wp dmg-read-more search "hello world"
+	 *
+	 *     # Search pages only, limit to 5 results
 	 *     wp dmg-read-more search "hello" --post-type=page --limit=5
+	 *
+	 *     # Find posts with block from specific date range
 	 *     wp dmg-read-more search --date-after=2024-01-01 --date-before=2024-12-31
+	 *
+	 *     # All posts with block across all post types, all time
+	 *     wp dmg-read-more search --date-after=2020-01-01 --limit=1000
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -102,6 +116,8 @@ class DMG_Read_More_Command {
 	/**
 	 * Execute post search and return post IDs containing DMG Read More blocks.
 	 *
+	 * Uses indexed meta query for optimal performance at scale.
+	 *
 	 * @param string      $search_term The term to search for.
 	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
 	 * @param int         $limit       Maximum number of results.
@@ -112,12 +128,18 @@ class DMG_Read_More_Command {
 	public function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
 			'post_type'              => $post_type,
-			'posts_per_page'         => -1, // Get all posts first, then filter
+			'posts_per_page'         => $limit,
 			'post_status'            => 'publish',
 			'no_found_rows'          => true,
 			'fields'                 => 'ids',
 			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
+			'meta_query'             => [
+				[
+					'key'   => '_has_dmg_read_more_block',
+					'value' => '1',
+				],
+			],
 		];
 
 		// Add search term if provided
@@ -146,27 +168,110 @@ class DMG_Read_More_Command {
 
 		$query = new \WP_Query( $query_args );
 
-		if ( ! $query->have_posts() ) {
-			return [];
+		return $query->posts;
+	}
+
+	/**
+	 * Reindex existing posts to populate block usage metadata.
+	 *
+	 * This command scans all posts and updates the _has_dmg_read_more_block
+	 * meta flag. Run this once after enabling the plugin on an existing site,
+	 * or when migrating content.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--post-type=<post-type>]
+	 * : The post type to reindex. If omitted, reindexes all post types.
+	 *
+	 * [--batch-size=<number>]
+	 * : Number of posts to process per batch. Default: 1000
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Reindex all posts across all post types
+	 *     wp dmg-read-more reindex
+	 *
+	 *     # Reindex only pages
+	 *     wp dmg-read-more reindex --post-type=page
+	 *
+	 *     # Reindex with larger batch size
+	 *     wp dmg-read-more reindex --batch-size=500
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 */
+	public function reindex( array $args, array $assoc_args ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+		$post_type   = $assoc_args['post-type'] ?? 'any';
+		$batch_size  = isset( $assoc_args['batch-size'] ) ? \absint( $assoc_args['batch-size'] ) : 1000;
+
+		// Validate batch size
+		if ( $batch_size < 1 ) {
+			\WP_CLI::error( 'Batch size must be a positive integer.' );
+			return;
 		}
 
-		// Filter posts that contain the DMG Read More block
-		$filtered_ids = [];
-		foreach ( $query->posts as $post_id ) {
-			$post_content = \get_post_field( 'post_content', $post_id );
+		// Validate post type exists (skip validation for 'any')
+		if ( $post_type !== 'any' && ! \post_type_exists( $post_type ) ) {
+			\WP_CLI::error( \sprintf( 'Post type "%s" does not exist.', $post_type ) );
+			return;
+		}
 
-			// Check if post content contains our block
-			if ( \has_block( 'dmg-read-more/dmg-read-more', $post_content ) ) {
-				$filtered_ids[] = $post_id;
+		\WP_CLI::log( \sprintf( 'Starting reindex of %s posts...', $post_type ) );
 
-				// Stop if we've reached the limit
-				if ( \count( $filtered_ids ) >= $limit ) {
-					break;
+		$query_args = [
+			'post_type'      => $post_type,
+			'posts_per_page' => $batch_size,
+			'post_status'    => 'any',
+			'paged'          => 1,
+			'fields'         => 'ids',
+			'no_found_rows'  => false, // Need total count for progress
+		];
+
+		$total_indexed   = 0;
+		$total_with_block = 0;
+		$page            = 1;
+
+		do {
+			$query_args['paged'] = $page;
+			$query = new \WP_Query( $query_args );
+
+			if ( ! $query->have_posts() ) {
+				break;
+			}
+
+			foreach ( $query->posts as $post_id ) {
+				$post_content = \get_post_field( 'post_content', $post_id );
+				$has_block    = \has_block( 'dmg-read-more/dmg-read-more', $post_content );
+
+				\update_post_meta( $post_id, '_has_dmg_read_more_block', $has_block ? '1' : '0' );
+
+				$total_indexed++;
+				if ( $has_block ) {
+					$total_with_block++;
 				}
 			}
-		}
 
-		return $filtered_ids;
+			\WP_CLI::log( \sprintf(
+				'Processed batch %d/%d (%d posts indexed, %d with block)...',
+				$page,
+				$query->max_num_pages,
+				$total_indexed,
+				$total_with_block
+			) );
+
+			$page++;
+
+			// Prevent memory issues on very large datasets
+			\wp_cache_flush();
+
+		} while ( $page <= $query->max_num_pages );
+
+		\WP_CLI::success( \sprintf(
+			'Reindexed %d posts total. Found %d posts containing the DMG Read More block.',
+			$total_indexed,
+			$total_with_block
+		) );
 	}
 
 	/**

@@ -24,6 +24,9 @@ class DMG_Read_More_Block {
 	public function __construct() {
 		// Hook to register block
 		\add_action( 'init', [ $this, 'register_block' ] );
+
+		// Hook to index block usage for efficient searching
+		\add_action( 'save_post', [ $this, 'index_block_usage' ], 10, 2 );
 	}
 
 	/**
@@ -106,5 +109,29 @@ class DMG_Read_More_Block {
 			\esc_url( $permalink ),
 			\esc_html( $title )
 		);
+	}
+
+	/**
+	 * Index block usage on post save for efficient searching.
+	 *
+	 * Maintains a post meta flag (_has_dmg_read_more_block) that indicates
+	 * whether a post contains the DMG Read More block. This enables fast
+	 * indexed lookups via meta_query instead of scanning post_content.
+	 *
+	 * @param int      $post_id Post ID.
+	 * @param \WP_Post $post    Post object.
+	 * @return void
+	 */
+	public function index_block_usage( int $post_id, \WP_Post $post ): void {
+		// Skip autosaves and revisions
+		if ( \wp_is_post_autosave( $post_id ) || \wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+
+		// Check if post contains the DMG Read More block
+		$has_block = \has_block( 'dmg-read-more/dmg-read-more', $post->post_content );
+
+		// Update meta flag: '1' if block exists, '0' if not
+		\update_post_meta( $post_id, '_has_dmg_read_more_block', $has_block ? '1' : '0' );
 	}
 }

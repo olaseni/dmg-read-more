@@ -1,0 +1,41 @@
+/**
+ * Styles for DMG Read More Block
+ * Applies to both editor and frontend
+ */
+
+/* Empty state - no post selected */
+.dmg-read-more-placeholder {
+	padding: 0.1em;
+	background: #f0f0f0;
+	border: 1px dashed #aaa;
+	border-radius: 4px;
+	text-align: center;
+	color: #aaa;
+}
+
+.dmg-read-more-placeholder p {
+	margin: 0;
+}
+
+/* Error state - post unavailable */
+.dmg-read-more-error {
+	padding: 0.1em;
+	background: #fef7f7;
+	border: 1px solid #cc1818;
+	border-radius: 4px;
+	text-align: center;
+	color: #cc1818;
+}
+
+.dmg-read-more-error p {
+	margin: 0;
+}
+
+/* Read More link - active state */
+.dmg-read-more {
+	margin: 0;
+}
+
+.dmg-read-more a {
+	text-decoration: none;
+}

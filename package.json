@@ -1,5 +1,13 @@
 {
+  "scripts": {
+    "start": "wp-env start --update",
+    "stop": "wp-env stop",
+    "build:blocks": "wp-scripts build --webpack-src-dir=blocks",
+    "clean": "rm -fr node_modules",
+    "clean:builds": "rm -fr build"
+  },
   "devDependencies": {
-    "@wordpress/env": "^10.33.0"
+    "@wordpress/env": "^10.33.0",
+    "@wordpress/scripts": "^30.26.0"
   }
 }

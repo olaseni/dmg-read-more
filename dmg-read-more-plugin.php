@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 /**
  * Plugin Name:       DMG Read More
  * Plugin URI:        https://github.com/olaseni/dmg-read-more
@@ -13,43 +16,47 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  */
 
+namespace DMG_Read_More;
+
 // If this file is called directly, abort.
-if ( ! defined( 'WPINC' ) ) {
-	die;
-}
+defined( 'WPINC' ) || die;
 
 /**
  * Plugin initialization.
+ *
+ * @return void
  */
-function dmg_read_more_init() {
+function init(): void {
 	$plugin_root_path = plugin_dir_path( __FILE__ );
 
 	// Register WP-CLI command if WP-CLI is available
-	if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	if ( defined( 'WP_CLI' ) && \WP_CLI ) {
 		require_once $plugin_root_path . 'includes/class-dmg-read-more-command.php';
-		WP_CLI::add_command( 'dmg-read-more', 'DMG_Read_More_Command' );
+		\WP_CLI::add_command( 'dmg-read-more', 'DMG_Read_More_Command' );
 	}
 
 	// Initialize block handler
 	require_once $plugin_root_path . 'includes/class-dmg-read-more-block.php';
-	new DMG_Read_More_Block();
+	new \DMG_Read_More_Block();
 }
-add_action( 'plugins_loaded', 'dmg_read_more_init' );
+add_action( 'plugins_loaded', __NAMESPACE__ . '\init' );
 
 /**
- * Activation hook.
+ * Plugin activation hook.
+ *
+ * @return void
  */
-function dmg_read_more_activate() {
-	// Add activation tasks here
+function activate(): void {
 	flush_rewrite_rules();
 }
-register_activation_hook( __FILE__, 'dmg_read_more_activate' );
+register_activation_hook( __FILE__, __NAMESPACE__ . '\activate' );
 
 /**
- * Deactivation hook.
+ * Plugin deactivation hook.
+ *
+ * @return void
  */
-function dmg_read_more_deactivate() {
-	// Add deactivation tasks here
+function deactivate(): void {
 	flush_rewrite_rules();
 }
-register_deactivation_hook( __FILE__, 'dmg_read_more_deactivate' );
+register_deactivation_hook( __FILE__, __NAMESPACE__ . '\deactivate' );

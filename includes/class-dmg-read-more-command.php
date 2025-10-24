@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * WP-CLI command for `dmg-read-more`.
  *
@@ -7,15 +9,12 @@
  */
 
 // Exit if accessed directly.
-if (! defined('ABSPATH')) {
-	exit;
-}
+defined( 'ABSPATH' ) || die;
 
 /**
  * DMG Read More WP-CLI Command class.
  */
-class DMG_Read_More_Command
-{
+class DMG_Read_More_Command {
 
 	/**
 	 * Search for posts.
@@ -45,111 +44,110 @@ class DMG_Read_More_Command
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
+	 * @return void
 	 */
-	public function search($args, $assoc_args)
-	{
-		$search_term = isset($args[0]) ? $args[0] : '';
-		$post_type   = isset($assoc_args['post-type']) ? $assoc_args['post-type'] : 'post';
-		$limit       = isset($assoc_args['limit']) ? absint($assoc_args['limit']) : 100;
+	public function search( array $args, array $assoc_args ): void {
+		$search_term = $args[0] ?? '';
+		$post_type   = $assoc_args['post-type'] ?? 'post';
+		$limit       = isset( $assoc_args['limit'] ) ? \absint( $assoc_args['limit'] ) : 100;
 
 		// Default to last 30 days if dates not provided
-		$date_after  = isset($assoc_args['date-after']) ? $assoc_args['date-after'] : date('Y-m-d', strtotime('-30 days'));
-		$date_before = isset($assoc_args['date-before']) ? $assoc_args['date-before'] : date('Y-m-d');
+		$date_after  = $assoc_args['date-after'] ?? \date( 'Y-m-d', \strtotime( '-30 days' ) );
+		$date_before = $assoc_args['date-before'] ?? \date( 'Y-m-d' );
 
 		// Validate search term
-		if (empty($search_term)) {
-			WP_CLI::error('Please provide a search term.');
+		if ( empty( $search_term ) ) {
+			\WP_CLI::error( 'Please provide a search term.' );
 			return;
 		}
 
 		// Validate limit
-		if ($limit < 1) {
-			WP_CLI::error('Limit must be a positive integer.');
+		if ( $limit < 1 ) {
+			\WP_CLI::error( 'Limit must be a positive integer.' );
 			return;
 		}
 
 		// Validate post type exists
-		if (!post_type_exists($post_type)) {
-			WP_CLI::error(sprintf('Post type "%s" does not exist.', $post_type));
+		if ( ! \post_type_exists( $post_type ) ) {
+			\WP_CLI::error( \sprintf( 'Post type "%s" does not exist.', $post_type ) );
 			return;
 		}
 
 		// Validate date formats
-		if (!$this->validate_date($date_after)) {
-			WP_CLI::error(sprintf('Invalid date format for --date-after: "%s". Use Y-m-d format (e.g., 2024-01-31).', $date_after));
+		if ( ! $this->validate_date( $date_after ) ) {
+			\WP_CLI::error( \sprintf( 'Invalid date format for --date-after: "%s". Use Y-m-d format (e.g., 2024-01-31).', $date_after ) );
 			return;
 		}
 
-		if (!$this->validate_date($date_before)) {
-			WP_CLI::error(sprintf('Invalid date format for --date-before: "%s". Use Y-m-d format (e.g., 2024-12-31).', $date_before));
+		if ( ! $this->validate_date( $date_before ) ) {
+			\WP_CLI::error( \sprintf( 'Invalid date format for --date-before: "%s". Use Y-m-d format (e.g., 2024-12-31).', $date_before ) );
 			return;
 		}
 
 		// Validate date logic (after should be before before)
-		if (strtotime($date_after) > strtotime($date_before)) {
-			WP_CLI::error('--date-after must be earlier than or equal to --date-before.');
+		if ( \strtotime( $date_after ) > \strtotime( $date_before ) ) {
+			\WP_CLI::error( '--date-after must be earlier than or equal to --date-before.' );
 			return;
 		}
 
 		try {
-			$post_ids = $this->search_posts($search_term, $post_type, $limit, $date_after, $date_before);
+			$post_ids = $this->search_posts( $search_term, $post_type, $limit, $date_after, $date_before );
 
-			if (empty($post_ids)) {
-				WP_CLI::warning('No posts found.');
+			if ( empty( $post_ids ) ) {
+				\WP_CLI::warning( 'No posts found.' );
 				return;
 			}
 
-			WP_CLI::log(join(',', $post_ids));
-		} catch (\Exception $exception) {
-			WP_CLI::error($exception->getMessage());
+			\WP_CLI::log( \join( ',', $post_ids ) );
+		} catch ( \Exception $exception ) {
+			\WP_CLI::error( $exception->getMessage() );
 		}
 	}
 
 	/**
 	 * Execute post search and return post IDs.
 	 *
-	 * @param string $search_term The term to search for.
-	 * @param string $post_type   The post type to search.
-	 * @param int    $limit       Maximum number of results.
-	 * @param string $date_after  Posts published after this date (Y-m-d).
-	 * @param string $date_before Posts published before this date (Y-m-d).
+	 * @param string      $search_term The term to search for.
+	 * @param string      $post_type   The post type to search.
+	 * @param int         $limit       Maximum number of results.
+	 * @param string|null $date_after  Posts published after this date (Y-m-d).
+	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	public function search_posts($search_term, $post_type = 'post', $limit = 10, $date_after = null, $date_before = null)
-	{
-		$query_args = array(
-			's'              => $search_term,
-			'post_type'      => $post_type,
-			'posts_per_page' => $limit,
-			'post_status'    => 'publish',
-			'no_found_rows' => true,
-			'fields' => 'ids',
+	public function search_posts( string $search_term, string $post_type = 'post', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+		$query_args = [
+			's'                      => $search_term,
+			'post_type'              => $post_type,
+			'posts_per_page'         => $limit,
+			'post_status'            => 'publish',
+			'no_found_rows'          => true,
+			'fields'                 => 'ids',
 			'update_post_meta_cache' => false,
-			'update_post_term_cache' => false
-		);
+			'update_post_term_cache' => false,
+		];
 
 		// Add date query if dates are provided
-		if ($date_after || $date_before) {
-			$query_args['date_query'] = array();
+		if ( $date_after || $date_before ) {
+			$query_args['date_query'] = [];
 
-			if ($date_after) {
-				$query_args['date_query'][] = array(
-					'after' => $date_after,
+			if ( $date_after ) {
+				$query_args['date_query'][] = [
+					'after'     => $date_after,
 					'inclusive' => true,
-				);
+				];
 			}
 
-			if ($date_before) {
-				$query_args['date_query'][] = array(
-					'before' => $date_before,
+			if ( $date_before ) {
+				$query_args['date_query'][] = [
+					'before'    => $date_before,
 					'inclusive' => true,
-				);
+				];
 			}
 		}
 
-		$query = new WP_Query($query_args);
+		$query = new \WP_Query( $query_args );
 
-		if ($query->have_posts()) {
+		if ( $query->have_posts() ) {
 			return $query->posts;
 		}
 
@@ -162,16 +160,15 @@ class DMG_Read_More_Command
 	 * @param string $date Date string to validate.
 	 * @return bool True if valid, false otherwise.
 	 */
-	private function validate_date($date)
-	{
-		if (empty($date)) {
+	private function validate_date( string $date ): bool {
+		if ( empty( $date ) ) {
 			return false;
 		}
 
-		$parsed_date = date_parse_from_format('Y-m-d', $date);
+		$parsed_date = \date_parse_from_format( 'Y-m-d', $date );
 
 		return $parsed_date['error_count'] === 0
 			&& $parsed_date['warning_count'] === 0
-			&& checkdate($parsed_date['month'], $parsed_date['day'], $parsed_date['year']);
+			&& \checkdate( $parsed_date['month'], $parsed_date['day'], $parsed_date['year'] );
 	}
 }

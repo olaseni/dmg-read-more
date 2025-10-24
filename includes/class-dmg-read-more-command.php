@@ -17,15 +17,15 @@ defined( 'ABSPATH' ) || die;
 class DMG_Read_More_Command {
 
 	/**
-	 * Search for posts.
+	 * Search for posts containing DMG Read More blocks.
 	 *
 	 * ## OPTIONS
 	 *
 	 * [<search-term>]
-	 * : The term to search for in posts. If omitted, matches all posts.
+	 * : The term to search for in posts. If omitted, matches all posts containing the block.
 	 *
 	 * [--post-type=<post-type>]
-	 * : The post type to search. Default: post
+	 * : The post type to search. If omitted, searches across all post types.
 	 *
 	 * [--limit=<number>]
 	 * : Maximum number of results to return. Default: 100
@@ -49,7 +49,7 @@ class DMG_Read_More_Command {
 	 */
 	public function search( array $args, array $assoc_args ): void {
 		$search_term = $args[0] ?? '';
-		$post_type   = $assoc_args['post-type'] ?? 'post';
+		$post_type   = $assoc_args['post-type'] ?? 'any';
 		$limit       = isset( $assoc_args['limit'] ) ? \absint( $assoc_args['limit'] ) : 100;
 
 		// Default to last 30 days if dates not provided
@@ -62,8 +62,8 @@ class DMG_Read_More_Command {
 			return;
 		}
 
-		// Validate post type exists
-		if ( ! \post_type_exists( $post_type ) ) {
+		// Validate post type exists (skip validation for 'any')
+		if ( $post_type !== 'any' && ! \post_type_exists( $post_type ) ) {
 			\WP_CLI::error( \sprintf( 'Post type "%s" does not exist.', $post_type ) );
 			return;
 		}
@@ -100,19 +100,19 @@ class DMG_Read_More_Command {
 	}
 
 	/**
-	 * Execute post search and return post IDs.
+	 * Execute post search and return post IDs containing DMG Read More blocks.
 	 *
 	 * @param string      $search_term The term to search for.
-	 * @param string      $post_type   The post type to search.
+	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
 	 * @param int         $limit       Maximum number of results.
 	 * @param string|null $date_after  Posts published after this date (Y-m-d).
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	public function search_posts( string $search_term, string $post_type = 'post', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+	public function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
 			'post_type'              => $post_type,
-			'posts_per_page'         => $limit,
+			'posts_per_page'         => -1, // Get all posts first, then filter
 			'post_status'            => 'publish',
 			'no_found_rows'          => true,
 			'fields'                 => 'ids',
@@ -146,11 +146,27 @@ class DMG_Read_More_Command {
 
 		$query = new \WP_Query( $query_args );
 
-		if ( $query->have_posts() ) {
-			return $query->posts;
+		if ( ! $query->have_posts() ) {
+			return [];
 		}
 
-		return [];
+		// Filter posts that contain the DMG Read More block
+		$filtered_ids = [];
+		foreach ( $query->posts as $post_id ) {
+			$post_content = \get_post_field( 'post_content', $post_id );
+
+			// Check if post content contains our block
+			if ( \has_block( 'dmg-read-more/dmg-read-more', $post_content ) ) {
+				$filtered_ids[] = $post_id;
+
+				// Stop if we've reached the limit
+				if ( \count( $filtered_ids ) >= $limit ) {
+					break;
+				}
+			}
+		}
+
+		return $filtered_ids;
 	}
 
 	/**

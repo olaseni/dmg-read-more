@@ -3,7 +3,7 @@
 /**
  * WP-CLI command for `dmg-read-more`.
  *
- * @package WP_Search_Posts
+ * @package DMG_Read_More
  */
 
 // Exit if accessed directly.

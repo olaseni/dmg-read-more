@@ -121,6 +121,8 @@ class DMG_Read_More_Command {
 			}
 
 			\WP_CLI::log( join( ',', $post_ids ) );
+
+			\WP_CLI::success(number_format_i18n(count($post_ids)));
 		} catch ( \Exception $exception ) {
 			\WP_CLI::error( $exception->getMessage() );
 		}
@@ -142,15 +144,6 @@ class DMG_Read_More_Command {
 
 			add_filter('posts_orderby', '__return_empty_string');
 
-			add_filter('posts_where', function ($where, $query) {
-				if (! $query->get(self::QUERY_NAME)) {
-					return $where;
-				}
-
-
-				return $where;
-			}, 10, 2);
-
 			if ( $debug_sql ) {
 				add_filter('query', function ($query) {
 					// Capture all queries (no filtering)
@@ -166,7 +159,6 @@ class DMG_Read_More_Command {
 	 * Execute post search and return post IDs containing DMG Read More blocks.
 	 *
 	 * Uses indexed meta query for optimal performance at scale.
-	 * Logs all SQL queries to console for debugging.
 	 *
 	 * @param string      $search_term The term to search for.
 	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
@@ -175,7 +167,7 @@ class DMG_Read_More_Command {
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	public function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+	private function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
 			self::QUERY_NAME => true,
 			'post_type'              => $post_type,

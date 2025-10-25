@@ -16,6 +16,8 @@ defined( 'ABSPATH' ) || die;
  */
 class DMG_Read_More_Command {
 
+	private const string QUERY_NAME = 'search_posts_containing_dmg_read_more';
+
 	/**
 	 * Search for posts containing DMG Read More blocks.
 	 *
@@ -40,6 +42,9 @@ class DMG_Read_More_Command {
 	 * [--date-before=<date>]
 	 * : Only include posts published before this date (Y-m-d format). Default: today
 	 *
+	 * [--debug-sql]
+	 * : Log SQL queries to console for debugging.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # List all posts with the DMG Read More block (last 30 days)
@@ -57,11 +62,17 @@ class DMG_Read_More_Command {
 	 *     # All posts with block across all post types, all time
 	 *     wp dmg-read-more search --date-after=2020-01-01 --limit=1000
 	 *
+	 *     # Debug SQL query performance
+	 *     wp dmg-read-more search "hello" --debug-sql
+	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
 	 */
 	public function search( array $args, array $assoc_args ): void {
+		$debug_sql = isset( $assoc_args['debug-sql'] );
+		$this->activate_filters( $debug_sql );
+
 		$search_term = $args[0] ?? '';
 		$post_type   = $assoc_args['post-type'] ?? 'any';
 		$limit       = isset( $assoc_args['limit'] ) ? \absint( $assoc_args['limit'] ) : 100;
@@ -114,9 +125,46 @@ class DMG_Read_More_Command {
 	}
 
 	/**
+	 * Activate filters that are needed to modify the WP_Query for performance
+	 *
+	 * @param bool $debug_sql Whether to log SQL queries to console.
+	 * @return void
+	 */
+	private function activate_filters( bool $debug_sql = false ): void
+	{
+		\add_action('pre_get_posts', function ($query) use ( $debug_sql ) {
+			// Target only this named query
+			if (! $query->get(self::QUERY_NAME)) {
+				return;
+			}
+
+			\add_filter('posts_orderby', '__return_empty_string');
+
+			\add_filter('posts_where', function ($where, $query) {
+				if (! $query->get(self::QUERY_NAME)) {
+					return $where;
+				}
+
+
+				return $where;
+			}, 10, 2);
+
+			if ( $debug_sql ) {
+				\add_filter('query', function ($query) {
+					// Capture all queries (no filtering)
+					$query_single_line = \preg_replace('/\s+/', ' ', $query);
+					\WP_CLI::log('SQL: ' . $query_single_line . PHP_EOL);
+					return $query;
+				});
+			}
+		});
+	}
+
+	/**
 	 * Execute post search and return post IDs containing DMG Read More blocks.
 	 *
 	 * Uses indexed meta query for optimal performance at scale.
+	 * Logs all SQL queries to console for debugging.
 	 *
 	 * @param string      $search_term The term to search for.
 	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
@@ -127,6 +175,7 @@ class DMG_Read_More_Command {
 	 */
 	public function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
+			self::QUERY_NAME => true,
 			'post_type'              => $post_type,
 			'posts_per_page'         => $limit,
 			'post_status'            => 'publish',
@@ -136,7 +185,7 @@ class DMG_Read_More_Command {
 			'update_post_term_cache' => false,
 			'meta_query'             => [
 				[
-					'key'   => '_has_dmg_read_more_block',
+					'key'   => \DMG_Read_More_Block::META_FLAG,
 					'value' => '1',
 				],
 			],
@@ -174,7 +223,7 @@ class DMG_Read_More_Command {
 	/**
 	 * Reindex existing posts to populate block usage metadata.
 	 *
-	 * This command scans all posts and updates the _has_dmg_read_more_block
+	 * This command scans all posts and updates the associated
 	 * meta flag. Run this once after enabling the plugin on an existing site,
 	 * or when migrating content.
 	 *
@@ -244,7 +293,7 @@ class DMG_Read_More_Command {
 				$post_content = \get_post_field( 'post_content', $post_id );
 				$has_block    = \has_block( 'dmg-read-more/dmg-read-more', $post_content );
 
-				\update_post_meta( $post_id, '_has_dmg_read_more_block', $has_block ? '1' : '0' );
+				\update_post_meta( $post_id, \DMG_Read_More_Block::META_FLAG, $has_block ? '1' : '0' );
 
 				$total_indexed++;
 				if ( $has_block ) {

@@ -85,12 +85,13 @@ SET unique_checks = 0;
 SET foreign_key_checks = 0;
 SET sql_log_bin = 0;
 
--- Capture starting ID before insert (safer than LAST_INSERT_ID)
-SET @start_id := (SELECT IFNULL(MAX(ID), 0) + 1 FROM wp_posts);
-
 -- Get admin user ID
 SET @admin_user_id := (SELECT ID FROM wp_users WHERE user_login = 'admin' LIMIT 1);
 SET @admin_user_id := IFNULL(@admin_user_id, 1);
+
+-- Capture starting ID before insert (safer than LAST_INSERT_ID)
+SET @start_id := (SELECT IFNULL(MAX(ID), 0) + 1 FROM wp_posts);
+SET @end_id := @start_id + ${BATCH_SIZE} - 1;
 
 -- Insert posts with random block (10-15% will have blocks) + realistic HTML content
 INSERT INTO wp_posts (
@@ -165,8 +166,8 @@ SELECT
       ),
       '</li>\n</ul>\n\n'
     ) ELSE '' END,
-    -- Block insertion point (10-15%)
-    CASE WHEN RAND() <= 0.125  -- 12.5% average (between 10-15%)
+    -- Block insertion point (15-30%)
+    CASE WHEN RAND() <= 0.225  -- 22.5% average (between 15-30%)
       THEN CONCAT('<!-- wp:', '${BLOCK_NAME}', " /-->\n\n")
       ELSE ''
     END,
@@ -208,17 +209,18 @@ FROM seq_1_to_1000000 AS s
 WHERE s.seq <= ${BATCH_SIZE}  -- Fixed: Use WHERE instead of table name
 LIMIT ${BATCH_SIZE};
 
+-- Update actual end ID after insert to account for any gaps
+SET @actual_end_id := (SELECT MAX(ID) FROM wp_posts WHERE ID >= @start_id);
+
 -- Insert _has_dmg_read_more_block meta only for posts with the block
 INSERT INTO wp_postmeta (post_id, meta_key, meta_value)
 SELECT p.ID, '_has_dmg_read_more_block', '1'
 FROM wp_posts p
-WHERE p.ID >= @start_id AND p.ID < @start_id + ${BATCH_SIZE}
-  AND p.post_content LIKE CONCAT('%', '${BLOCK_NAME}', '%');
+WHERE p.ID >= @start_id AND p.ID <= @actual_end_id
+  AND p.post_content LIKE CONCAT('%<!-- wp:', '${BLOCK_NAME}', '%');
 
--- Return numeric count of blocks inserted this batch
-SELECT COUNT(*) FROM wp_posts
-WHERE post_content LIKE CONCAT('%', '${BLOCK_NAME}', '%')
-  AND ID >= @start_id AND ID < @start_id + ${BATCH_SIZE};
+-- Return numeric count of meta rows inserted
+SELECT ROW_COUNT();
 
 COMMIT;
 SET autocommit = 1;

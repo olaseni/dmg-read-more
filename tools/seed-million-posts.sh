@@ -92,7 +92,7 @@ SET @start_id := (SELECT IFNULL(MAX(ID), 0) + 1 FROM wp_posts);
 SET @admin_user_id := (SELECT ID FROM wp_users WHERE user_login = 'admin' LIMIT 1);
 SET @admin_user_id := IFNULL(@admin_user_id, 1);
 
--- Insert posts with random block (10-15% will have blocks) + expanded word list
+-- Insert posts with random block (10-15% will have blocks) + realistic HTML content
 INSERT INTO wp_posts (
   post_author, post_date, post_date_gmt, post_content, post_title, post_excerpt,
   post_status, comment_status, ping_status, post_password, post_name, to_ping, pinged,
@@ -104,19 +104,87 @@ SELECT
   NOW() - INTERVAL FLOOR(RAND() * 365) DAY,  -- Each row gets different random date
   CONVERT_TZ(NOW() - INTERVAL FLOOR(RAND() * 365) DAY, @@session.time_zone, '+00:00'),
   CONCAT(
-    REPEAT('Lorem ipsum ', FLOOR(RAND()*10)+5),
+    -- Opening paragraph with varied content
+    '<p>',
+    ELT(FLOOR(1 + RAND()*10),
+      'In the rapidly evolving landscape of digital technology, businesses must adapt to stay competitive.',
+      'The transformation of modern industry relies heavily on innovative solutions and creative problem-solving.',
+      'As we navigate through an era of unprecedented change, understanding core principles becomes essential.',
+      'Effective communication strategies are fundamental to building strong organizational relationships.',
+      'The intersection of technology and human experience creates opportunities for meaningful innovation.',
+      'Market dynamics continue to shift as consumer preferences evolve in unexpected directions.',
+      'Strategic planning requires careful consideration of both short-term goals and long-term vision.',
+      'Digital transformation has fundamentally altered how we approach traditional business challenges.',
+      'Understanding customer needs through data analysis provides valuable insights for growth.',
+      'Collaborative efforts across departments lead to more comprehensive and effective solutions.'
+    ),
+    '</p>\n\n',
+    -- Middle section with headings and lists
+    CASE WHEN RAND() > 0.5 THEN CONCAT(
+      '<h2>',
+      ELT(FLOOR(1 + RAND()*8),
+        'Key Considerations',
+        'Important Factors',
+        'Strategic Insights',
+        'Essential Elements',
+        'Core Principles',
+        'Critical Success Factors',
+        'Best Practices',
+        'Implementation Guidelines'
+      ),
+      '</h2>\n<ul>\n',
+      '<li>',
+      ELT(FLOOR(1 + RAND()*12),
+        'Comprehensive analysis of market trends and competitive positioning',
+        'Integration of cutting-edge technologies with existing infrastructure',
+        'Development of scalable solutions that accommodate future growth',
+        'Emphasis on user experience and customer satisfaction metrics',
+        'Continuous improvement through iterative feedback and optimization',
+        'Risk management strategies to mitigate potential challenges',
+        'Resource allocation aligned with organizational priorities',
+        'Performance measurement using data-driven methodologies',
+        'Cross-functional collaboration to leverage diverse expertise',
+        'Innovation fostered through experimentation and learning',
+        'Sustainability considerations in long-term planning',
+        'Adaptability to changing market conditions and requirements'
+      ),
+      '</li>\n<li>',
+      ELT(FLOOR(1 + RAND()*12),
+        'Robust security measures protecting sensitive information and assets',
+        'Transparency in operations building trust with stakeholders',
+        'Quality assurance processes ensuring consistent deliverables',
+        'Training and development programs enhancing team capabilities',
+        'Customer engagement strategies driving loyalty and retention',
+        'Operational efficiency through process automation and optimization',
+        'Financial sustainability supporting long-term viability',
+        'Ethical practices aligned with corporate values and standards',
+        'Technology infrastructure supporting business objectives',
+        'Market research informing strategic decisions',
+        'Brand positioning creating competitive differentiation',
+        'Partnership development expanding capabilities and reach'
+      ),
+      '</li>\n</ul>\n\n'
+    ) ELSE '' END,
+    -- Block insertion point (10-15%)
     CASE WHEN RAND() <= 0.125  -- 12.5% average (between 10-15%)
-      THEN CONCAT('\n<!-- wp:', '${BLOCK_NAME}', " /-->\n")
+      THEN CONCAT('<!-- wp:', '${BLOCK_NAME}', " /-->\n\n")
       ELSE ''
     END,
-    ' ',
-    ELT(FLOOR(1 + RAND()*20), 'hello','world','test','search','query','performance',
-        'database','index','optimize','scale','million','posts','wordpress','gutenberg',
-        'block','meta','plugin','data','content','article'),
-    ' ',
-    ELT(FLOOR(1 + RAND()*20), 'hello','world','test','search','query','performance',
-        'database','index','optimize','scale','million','posts','wordpress','gutenberg',
-        'block','meta','plugin','data','content','article')
+    -- Closing paragraph with varied content
+    '<p>',
+    ELT(FLOOR(1 + RAND()*10),
+      'Looking forward, organizations must remain agile and responsive to emerging opportunities and challenges in the marketplace.',
+      'Success in today\'s environment demands a commitment to excellence, innovation, and continuous learning across all levels.',
+      'By focusing on sustainable practices and stakeholder value, companies can build lasting competitive advantages.',
+      'The integration of diverse perspectives and expertise enables more robust solutions to complex problems.',
+      'Investing in people, processes, and technology creates a foundation for sustained growth and profitability.',
+      'Embracing change while maintaining core values helps organizations navigate uncertainty with confidence.',
+      'Through strategic partnerships and collaboration, businesses can achieve outcomes greater than the sum of their parts.',
+      'Data-informed decision-making combined with creative thinking drives breakthrough innovations and results.',
+      'Building resilient systems and cultures prepares organizations to thrive despite market volatility.',
+      'Ultimately, the pursuit of excellence requires dedication, vision, and unwavering commitment to continuous improvement.'
+    ),
+    '</p>'
   ),
   CONCAT('Generated Post #', ${START_SEQ} + s.seq -1),
   '',

@@ -19,6 +19,12 @@ defined( 'ABSPATH' ) || die;
 class DMG_Read_More_Block {
 
 	/**
+	 * The post meta flag to use for signaling that the post contains a block.
+	 * @var string
+	 */
+	public const string META_FLAG = '_has_dmg_read_more_block';
+
+	/**
 	 * Initialize the block handler.
 	 */
 	public function __construct() {
@@ -132,6 +138,6 @@ class DMG_Read_More_Block {
 		$has_block = \has_block( 'dmg-read-more/dmg-read-more', $post->post_content );
 
 		// Update meta flag: '1' if block exists, '0' if not
-		\update_post_meta( $post_id, '_has_dmg_read_more_block', $has_block ? '1' : '0' );
+		\update_post_meta( $post_id, self::META_FLAG, $has_block ? '1' : '0' );
 	}
 }

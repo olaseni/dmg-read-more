@@ -32,12 +32,12 @@ function init(): void {
 	// Register WP-CLI command if WP-CLI is available
 	if ( defined( 'WP_CLI' ) && \WP_CLI ) {
 		require_once $plugin_root_path . 'includes/class-dmg-read-more-command.php';
-		\WP_CLI::add_command( 'dmg-read-more', 'DMG_Read_More_Command' );
+		\WP_CLI::add_command( 'dmg-read-more', DMG_Read_More_Command::class );
 	}
 
 	// Initialize block handler
 	require_once $plugin_root_path . 'includes/class-dmg-read-more-block.php';
-	new \DMG_Read_More_Block();
+	new DMG_Read_More_Block();
 }
 add_action( 'plugins_loaded', __NAMESPACE__ . '\init' );
 

@@ -8,6 +8,8 @@ declare(strict_types=1);
  * @package DMG_Read_More
  */
 
+namespace DMG_Read_More;
+
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die;
 
@@ -75,11 +77,11 @@ class DMG_Read_More_Command {
 
 		$search_term = $args[0] ?? '';
 		$post_type   = $assoc_args['post-type'] ?? 'any';
-		$limit       = isset( $assoc_args['limit'] ) ? \absint( $assoc_args['limit'] ) : 100;
+		$limit       = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
 
 		// Default to last 30 days if dates not provided
-		$date_after  = $assoc_args['date-after'] ?? \date( 'Y-m-d', \strtotime( '-30 days' ) );
-		$date_before = $assoc_args['date-before'] ?? \date( 'Y-m-d' );
+		$date_after  = $assoc_args['date-after'] ?? date( 'Y-m-d', strtotime( '-30 days' ) );
+		$date_before = $assoc_args['date-before'] ?? date( 'Y-m-d' );
 
 		// Validate limit
 		if ( $limit < 1 ) {
@@ -88,24 +90,24 @@ class DMG_Read_More_Command {
 		}
 
 		// Validate post type exists (skip validation for 'any')
-		if ( $post_type !== 'any' && ! \post_type_exists( $post_type ) ) {
-			\WP_CLI::error( \sprintf( 'Post type "%s" does not exist.', $post_type ) );
+		if ( $post_type !== 'any' && ! post_type_exists( $post_type ) ) {
+			\WP_CLI::error( sprintf( 'Post type "%s" does not exist.', $post_type ) );
 			return;
 		}
 
 		// Validate date formats
 		if ( ! $this->validate_date( $date_after ) ) {
-			\WP_CLI::error( \sprintf( 'Invalid date format for --date-after: "%s". Use Y-m-d format (e.g., 2024-01-31).', $date_after ) );
+			\WP_CLI::error( sprintf( 'Invalid date format for --date-after: "%s". Use Y-m-d format (e.g., 2024-01-31).', $date_after ) );
 			return;
 		}
 
 		if ( ! $this->validate_date( $date_before ) ) {
-			\WP_CLI::error( \sprintf( 'Invalid date format for --date-before: "%s". Use Y-m-d format (e.g., 2024-12-31).', $date_before ) );
+			\WP_CLI::error( sprintf( 'Invalid date format for --date-before: "%s". Use Y-m-d format (e.g., 2024-12-31).', $date_before ) );
 			return;
 		}
 
 		// Validate date logic (after should be before before)
-		if ( \strtotime( $date_after ) > \strtotime( $date_before ) ) {
+		if ( strtotime( $date_after ) > strtotime( $date_before ) ) {
 			\WP_CLI::error( '--date-after must be earlier than or equal to --date-before.' );
 			return;
 		}
@@ -118,7 +120,7 @@ class DMG_Read_More_Command {
 				return;
 			}
 
-			\WP_CLI::log( \join( ',', $post_ids ) );
+			\WP_CLI::log( join( ',', $post_ids ) );
 		} catch ( \Exception $exception ) {
 			\WP_CLI::error( $exception->getMessage() );
 		}
@@ -132,15 +134,15 @@ class DMG_Read_More_Command {
 	 */
 	private function activate_filters( bool $debug_sql = false ): void
 	{
-		\add_action('pre_get_posts', function ($query) use ( $debug_sql ) {
+		add_action('pre_get_posts', function ($query) use ( $debug_sql ) {
 			// Target only this named query
 			if (! $query->get(self::QUERY_NAME)) {
 				return;
 			}
 
-			\add_filter('posts_orderby', '__return_empty_string');
+			add_filter('posts_orderby', '__return_empty_string');
 
-			\add_filter('posts_where', function ($where, $query) {
+			add_filter('posts_where', function ($where, $query) {
 				if (! $query->get(self::QUERY_NAME)) {
 					return $where;
 				}
@@ -150,9 +152,9 @@ class DMG_Read_More_Command {
 			}, 10, 2);
 
 			if ( $debug_sql ) {
-				\add_filter('query', function ($query) {
+				add_filter('query', function ($query) {
 					// Capture all queries (no filtering)
-					$query_single_line = \preg_replace('/\s+/', ' ', $query);
+					$query_single_line = preg_replace('/\s+/', ' ', $query);
 					\WP_CLI::log('SQL: ' . $query_single_line . PHP_EOL);
 					return $query;
 				});
@@ -185,7 +187,7 @@ class DMG_Read_More_Command {
 			'update_post_term_cache' => false,
 			'meta_query'             => [
 				[
-					'key'   => \DMG_Read_More_Block::META_FLAG,
+					'key'   => DMG_Read_More_Block::META_FLAG,
 					'value' => '1',
 				],
 			],
@@ -233,7 +235,7 @@ class DMG_Read_More_Command {
 	 * : The post type to reindex. If omitted, reindexes all post types.
 	 *
 	 * [--batch-size=<number>]
-	 * : Number of posts to process per batch. Default: 1000
+	 * : Number of posts to process per batch. Default: 100000
 	 *
 	 * ## EXAMPLES
 	 *
@@ -252,7 +254,7 @@ class DMG_Read_More_Command {
 	 */
 	public function reindex( array $args, array $assoc_args ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 		$post_type   = $assoc_args['post-type'] ?? 'any';
-		$batch_size  = isset( $assoc_args['batch-size'] ) ? \absint( $assoc_args['batch-size'] ) : 1000;
+		$batch_size  = isset( $assoc_args['batch-size'] ) ? absint( $assoc_args['batch-size'] ) : 100000;
 
 		// Validate batch size
 		if ( $batch_size < 1 ) {
@@ -261,12 +263,12 @@ class DMG_Read_More_Command {
 		}
 
 		// Validate post type exists (skip validation for 'any')
-		if ( $post_type !== 'any' && ! \post_type_exists( $post_type ) ) {
-			\WP_CLI::error( \sprintf( 'Post type "%s" does not exist.', $post_type ) );
+		if ( $post_type !== 'any' && ! post_type_exists( $post_type ) ) {
+			\WP_CLI::error( sprintf( 'Post type "%s" does not exist.', $post_type ) );
 			return;
 		}
 
-		\WP_CLI::log( \sprintf( 'Starting reindex of %s posts...', $post_type ) );
+		\WP_CLI::log( sprintf( 'Starting reindex of %s posts in batches of %s ...', $post_type, number_format_i18n($batch_size) ) );
 
 		$query_args = [
 			'post_type'      => $post_type,
@@ -290,18 +292,22 @@ class DMG_Read_More_Command {
 			}
 
 			foreach ( $query->posts as $post_id ) {
-				$post_content = \get_post_field( 'post_content', $post_id );
-				$has_block    = \has_block( 'dmg-read-more/dmg-read-more', $post_content );
+				$post_content = get_post_field( 'post_content', $post_id );
+				$has_block    = has_block( DMG_Read_More_Block::BLOCK_NAME, $post_content );
 
-				\update_post_meta( $post_id, \DMG_Read_More_Block::META_FLAG, $has_block ? '1' : '0' );
+				if ( $has_block ) {
+					// Add/update meta flag when block exists
+					update_post_meta( $post_id, DMG_Read_More_Block::META_FLAG, '1' );
+					$total_with_block++;
+				} else {
+					// Remove meta flag when block doesn't exist
+					delete_post_meta( $post_id, DMG_Read_More_Block::META_FLAG );
+				}
 
 				$total_indexed++;
-				if ( $has_block ) {
-					$total_with_block++;
-				}
 			}
 
-			\WP_CLI::log( \sprintf(
+			\WP_CLI::log( sprintf(
 				'Processed batch %d/%d (%d posts indexed, %d with block)...',
 				$page,
 				$query->max_num_pages,
@@ -312,11 +318,11 @@ class DMG_Read_More_Command {
 			$page++;
 
 			// Prevent memory issues on very large datasets
-			\wp_cache_flush();
+			wp_cache_flush();
 
 		} while ( $page <= $query->max_num_pages );
 
-		\WP_CLI::success( \sprintf(
+		\WP_CLI::success( sprintf(
 			'Reindexed %d posts total. Found %d posts containing the DMG Read More block.',
 			$total_indexed,
 			$total_with_block
@@ -334,10 +340,10 @@ class DMG_Read_More_Command {
 			return false;
 		}
 
-		$parsed_date = \date_parse_from_format( 'Y-m-d', $date );
+		$parsed_date = date_parse_from_format( 'Y-m-d', $date );
 
 		return $parsed_date['error_count'] === 0
 			&& $parsed_date['warning_count'] === 0
-			&& \checkdate( $parsed_date['month'], $parsed_date['day'], $parsed_date['year'] );
+			&& checkdate( $parsed_date['month'], $parsed_date['day'], $parsed_date['year'] );
 	}
 }

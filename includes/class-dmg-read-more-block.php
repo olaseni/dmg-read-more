@@ -8,6 +8,8 @@ declare(strict_types=1);
  * @package DMG_Read_More
  */
 
+namespace DMG_Read_More;
+
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die;
 
@@ -17,6 +19,12 @@ defined( 'ABSPATH' ) || die;
  * Handles server-side rendering and logic for the DMG Read More block.
  */
 class DMG_Read_More_Block {
+
+	/**
+	 * The block name/identifier.
+	 * @var string
+	 */
+	public const string BLOCK_NAME = 'dmg-read-more/dmg-read-more';
 
 	/**
 	 * The post meta flag to use for signaling that the post contains a block.
@@ -29,10 +37,10 @@ class DMG_Read_More_Block {
 	 */
 	public function __construct() {
 		// Hook to register block
-		\add_action( 'init', [ $this, 'register_block' ] );
+		add_action( 'init', [ $this, 'register_block' ] );
 
 		// Hook to index block usage for efficient searching
-		\add_action( 'save_post', [ $this, 'index_block_usage' ], 10, 2 );
+		add_action( 'save_post', [ $this, 'index_block_usage' ], 10, 2 );
 	}
 
 	/**
@@ -41,8 +49,8 @@ class DMG_Read_More_Block {
 	 * @return void
 	 */
 	public function register_block(): void {
-		\register_block_type(
-			\plugin_dir_path( \dirname( __FILE__ ) ) . 'build/dmg-read-more',
+		register_block_type(
+			plugin_dir_path( dirname( __FILE__ ) ) . 'build/dmg-read-more',
 			[
 				'render_callback' => [ $this, 'render_callback' ],
 			]
@@ -57,7 +65,7 @@ class DMG_Read_More_Block {
 	 */
 	public function render_callback( array $attributes ): string {
 		// Get post ID from attributes
-		$post_id = \absint( $attributes['postId'] ?? 0 );
+		$post_id = absint( $attributes['postId'] ?? 0 );
 
 		// Handle empty state
 		if ( empty( $post_id ) ) {
@@ -65,7 +73,7 @@ class DMG_Read_More_Block {
 		}
 
 		// Fetch and validate post
-		$post = \get_post( $post_id );
+		$post = get_post( $post_id );
 
 		if ( ! $post || $post->post_status !== 'publish' ) {
 			return $this->render_error_state();
@@ -81,9 +89,9 @@ class DMG_Read_More_Block {
 	 * @return string HTML for empty state.
 	 */
 	private function render_empty_state(): string {
-		return \sprintf(
+		return sprintf(
 			'<div class="dmg-read-more-placeholder"><p>%s</p></div>',
-			\esc_html__( 'Select a post to display a Read More link', 'dmg-read-more' )
+			esc_html__( 'Select a post to display a Read More link', 'dmg-read-more' )
 		);
 	}
 
@@ -93,9 +101,9 @@ class DMG_Read_More_Block {
 	 * @return string HTML for error state.
 	 */
 	private function render_error_state(): string {
-		return \sprintf(
+		return sprintf(
 			'<div class="dmg-read-more-error"><p>%s</p></div>',
-			\esc_html__( 'Selected post is not available', 'dmg-read-more' )
+			esc_html__( 'Selected post is not available', 'dmg-read-more' )
 		);
 	}
 
@@ -106,14 +114,14 @@ class DMG_Read_More_Block {
 	 * @return string HTML for the Read More link.
 	 */
 	private function render_link( int $post_id ): string {
-		$permalink = \get_permalink( $post_id );
-		$title     = \get_the_title( $post_id );
+		$permalink = get_permalink( $post_id );
+		$title     = get_the_title( $post_id );
 
-		return \sprintf(
+		return sprintf(
 			'<p class="dmg-read-more">%s<a href="%s">%s</a></p>',
-			\__( 'Read More: ', 'dmg-read-more' ),
-			\esc_url( $permalink ),
-			\esc_html( $title )
+			__( 'Read More: ', 'dmg-read-more' ),
+			esc_url( $permalink ),
+			esc_html( $title )
 		);
 	}
 
@@ -124,20 +132,28 @@ class DMG_Read_More_Block {
 	 * whether a post contains the DMG Read More block. This enables fast
 	 * indexed lookups via meta_query instead of scanning post_content.
 	 *
+	 * Strategy: Only create meta row when block exists; delete it when block is removed.
+	 * This reduces database bloat for posts without the block.
+	 *
 	 * @param int      $post_id Post ID.
 	 * @param \WP_Post $post    Post object.
 	 * @return void
 	 */
 	public function index_block_usage( int $post_id, \WP_Post $post ): void {
 		// Skip autosaves and revisions
-		if ( \wp_is_post_autosave( $post_id ) || \wp_is_post_revision( $post_id ) ) {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
 			return;
 		}
 
 		// Check if post contains the DMG Read More block
-		$has_block = \has_block( 'dmg-read-more/dmg-read-more', $post->post_content );
+		$has_block = has_block( self::BLOCK_NAME, $post->post_content );
 
-		// Update meta flag: '1' if block exists, '0' if not
-		\update_post_meta( $post_id, self::META_FLAG, $has_block ? '1' : '0' );
+		if ( $has_block ) {
+			// Add/update meta flag when block exists
+			update_post_meta( $post_id, self::META_FLAG, '1' );
+		} else {
+			// Remove meta flag when block doesn't exist
+			delete_post_meta( $post_id, self::META_FLAG );
+		}
 	}
 }

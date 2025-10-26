@@ -121,8 +121,6 @@ class DMG_Read_More_Command {
 			}
 
 			\WP_CLI::log( join( ',', $post_ids ) );
-
-			\WP_CLI::success(number_format_i18n(count($post_ids)));
 		} catch ( \Exception $exception ) {
 			\WP_CLI::error( $exception->getMessage() );
 		}
@@ -142,7 +140,10 @@ class DMG_Read_More_Command {
 				return;
 			}
 
+			// Ordering impacts queries at this scale. We don't need it. And for 1-1 matching,
+			// grouping is redundant as well
 			add_filter('posts_orderby', '__return_empty_string');
+			add_filter('posts_groupby', '__return_empty_string');
 
 			if ( $debug_sql ) {
 				add_filter('query', function ($query) {

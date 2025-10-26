@@ -29,9 +29,6 @@ class DMG_Read_More_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * [--limit=<number>]
-	 * : Maximum number of post IDs to return. Default: 100
-	 *
 	 * [--date-after=<date>]
 	 * : Only include posts published after this date (Y-m-d format). Default: 30 days ago
 	 *
@@ -46,14 +43,11 @@ class DMG_Read_More_Command {
 	 *     # List all posts with the DMG Read More block (last 30 days)
 	 *     wp dmg-read-more search
 	 *
-	 *     # Limit to 5 results
-	 *     wp dmg-read-more search --limit=5
-	 *
 	 *     # Find posts with block from specific date range
 	 *     wp dmg-read-more search --date-after=2024-01-01 --date-before=2024-12-31
 	 *
 	 *     # All posts with block across all post types, all time
-	 *     wp dmg-read-more search --date-after=2020-01-01 --limit=1000
+	 *     wp dmg-read-more search --date-after=2020-01-01
 	 *
 	 *     # Debug SQL query performance
 	 *     wp dmg-read-more search --debug-sql
@@ -66,17 +60,9 @@ class DMG_Read_More_Command {
 		$debug_sql = isset( $assoc_args['debug-sql'] );
 		$this->activate_filters( $debug_sql );
 
-		$limit = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
-
 		// Default to last 30 days if dates not provided
 		$date_after  = $assoc_args['date-after'] ?? date( 'Y-m-d', strtotime( '-30 days' ) );
 		$date_before = $assoc_args['date-before'] ?? date( 'Y-m-d' );
-
-		// Validate limit
-		if ( $limit < 1 ) {
-			\WP_CLI::error( 'Limit must be a positive integer.' );
-			return;
-		}
 
 		// Validate date formats
 		if ( ! $this->validate_date( $date_after ) ) {
@@ -96,7 +82,7 @@ class DMG_Read_More_Command {
 		}
 
 		try {
-			$post_ids = $this->search_posts( $limit, $date_after, $date_before );
+			$post_ids = $this->search_posts( $date_after, $date_before );
 
 			if ( empty( $post_ids ) ) {
 				\WP_CLI::warning( 'No posts found.' );
@@ -162,20 +148,20 @@ class DMG_Read_More_Command {
 	 *
 	 * Uses indexed meta query for optimal performance at scale.
 	 * Automatically searches across all post types that support the block editor.
+	 * Returns all matching posts without limit.
 	 *
-	 * @param int         $limit       Maximum number of results.
 	 * @param string|null $date_after  Posts published after this date (Y-m-d).
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	private function search_posts( int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+	private function search_posts( ?string $date_after = null, ?string $date_before = null ): array {
 		// Get all post types that support the block editor
 		$post_types = $this->get_block_editor_post_types();
 
 		$query_args = [
 			self::QUERY_NAME => true,
 			'post_type'              => $post_types,
-			'posts_per_page'         => $limit,
+			'posts_per_page'         => -1, // Return all matching posts
 			'post_status'            => 'publish',
 			'no_found_rows'          => true,
 			'fields'                 => 'ids',

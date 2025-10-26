@@ -23,14 +23,10 @@ class DMG_Read_More_Command {
 	/**
 	 * Search for posts containing DMG Read More blocks.
 	 *
-	 * Finds posts that contain the DMG Read More Gutenberg block. When a search
-	 * term is provided, only returns posts that BOTH contain the block AND match
-	 * the search term. Uses indexed lookups for optimal performance at scale.
+	 * Finds posts that contain the DMG Read More Gutenberg block.
+	 * Uses indexed lookups for optimal performance at scale.
 	 *
 	 * ## OPTIONS
-	 *
-	 * [<search-term>]
-	 * : Search term to filter posts by title/content/excerpt. When provided, only returns posts containing BOTH the search term AND the block. When omitted, returns all posts with the block.
 	 *
 	 * [--post-type=<post-type>]
 	 * : Post type to search. When omitted, searches across all public post types.
@@ -52,11 +48,8 @@ class DMG_Read_More_Command {
 	 *     # List all posts with the DMG Read More block (last 30 days)
 	 *     wp dmg-read-more search
 	 *
-	 *     # Find posts containing "hello" that also have the block
-	 *     wp dmg-read-more search "hello world"
-	 *
 	 *     # Search pages only, limit to 5 results
-	 *     wp dmg-read-more search "hello" --post-type=page --limit=5
+	 *     wp dmg-read-more search --post-type=page --limit=5
 	 *
 	 *     # Find posts with block from specific date range
 	 *     wp dmg-read-more search --date-after=2024-01-01 --date-before=2024-12-31
@@ -65,7 +58,7 @@ class DMG_Read_More_Command {
 	 *     wp dmg-read-more search --date-after=2020-01-01 --limit=1000
 	 *
 	 *     # Debug SQL query performance
-	 *     wp dmg-read-more search "hello" --debug-sql
+	 *     wp dmg-read-more search --debug-sql
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -75,9 +68,8 @@ class DMG_Read_More_Command {
 		$debug_sql = isset( $assoc_args['debug-sql'] );
 		$this->activate_filters( $debug_sql );
 
-		$search_term = $args[0] ?? '';
-		$post_type   = $assoc_args['post-type'] ?? 'any';
-		$limit       = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
+		$post_type = $assoc_args['post-type'] ?? 'any';
+		$limit     = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
 
 		// Default to last 30 days if dates not provided
 		$date_after  = $assoc_args['date-after'] ?? date( 'Y-m-d', strtotime( '-30 days' ) );
@@ -113,7 +105,7 @@ class DMG_Read_More_Command {
 		}
 
 		try {
-			$post_ids = $this->search_posts( $search_term, $post_type, $limit, $date_after, $date_before );
+			$post_ids = $this->search_posts( $post_type, $limit, $date_after, $date_before );
 
 			if ( empty( $post_ids ) ) {
 				\WP_CLI::warning( 'No posts found.' );
@@ -161,14 +153,13 @@ class DMG_Read_More_Command {
 	 *
 	 * Uses indexed meta query for optimal performance at scale.
 	 *
-	 * @param string      $search_term The term to search for.
 	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
 	 * @param int         $limit       Maximum number of results.
 	 * @param string|null $date_after  Posts published after this date (Y-m-d).
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	private function search_posts( string $search_term, string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+	private function search_posts( string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
 		$query_args = [
 			self::QUERY_NAME => true,
 			'post_type'              => $post_type,
@@ -185,11 +176,6 @@ class DMG_Read_More_Command {
 				],
 			],
 		];
-
-		// Add search term if provided
-		if ( ! empty( $search_term ) ) {
-			$query_args['s'] = $search_term;
-		}
 
 		// Add date query if dates are provided
 		if ( $date_after || $date_before ) {

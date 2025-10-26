@@ -2,6 +2,7 @@
   "scripts": {
     "start": "wp-env start --update",
     "stop": "wp-env stop",
+    "package:plugin": "./tools/package-plugin.sh",
     "build:blocks": "wp-scripts build --webpack-src-dir=blocks",
     "cli:search": "wp-env run cli -- wp dmg-read-more search",
     "cli:search-reindex": "wp-env run cli wp dmg-read-more reindex",

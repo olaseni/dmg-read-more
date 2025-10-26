@@ -24,12 +24,10 @@ class DMG_Read_More_Command {
 	 * Search for posts containing DMG Read More blocks.
 	 *
 	 * Finds posts that contain the DMG Read More Gutenberg block.
+	 * Automatically searches across all post types that support the block editor.
 	 * Uses indexed lookups for optimal performance at scale.
 	 *
 	 * ## OPTIONS
-	 *
-	 * [--post-type=<post-type>]
-	 * : Post type to search. When omitted, searches across all public post types.
 	 *
 	 * [--limit=<number>]
 	 * : Maximum number of post IDs to return. Default: 100
@@ -48,8 +46,8 @@ class DMG_Read_More_Command {
 	 *     # List all posts with the DMG Read More block (last 30 days)
 	 *     wp dmg-read-more search
 	 *
-	 *     # Search pages only, limit to 5 results
-	 *     wp dmg-read-more search --post-type=page --limit=5
+	 *     # Limit to 5 results
+	 *     wp dmg-read-more search --limit=5
 	 *
 	 *     # Find posts with block from specific date range
 	 *     wp dmg-read-more search --date-after=2024-01-01 --date-before=2024-12-31
@@ -68,8 +66,7 @@ class DMG_Read_More_Command {
 		$debug_sql = isset( $assoc_args['debug-sql'] );
 		$this->activate_filters( $debug_sql );
 
-		$post_type = $assoc_args['post-type'] ?? 'any';
-		$limit     = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
+		$limit = isset( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : 100;
 
 		// Default to last 30 days if dates not provided
 		$date_after  = $assoc_args['date-after'] ?? date( 'Y-m-d', strtotime( '-30 days' ) );
@@ -78,12 +75,6 @@ class DMG_Read_More_Command {
 		// Validate limit
 		if ( $limit < 1 ) {
 			\WP_CLI::error( 'Limit must be a positive integer.' );
-			return;
-		}
-
-		// Validate post type exists (skip validation for 'any')
-		if ( $post_type !== 'any' && ! post_type_exists( $post_type ) ) {
-			\WP_CLI::error( sprintf( 'Post type "%s" does not exist.', $post_type ) );
 			return;
 		}
 
@@ -105,7 +96,7 @@ class DMG_Read_More_Command {
 		}
 
 		try {
-			$post_ids = $this->search_posts( $post_type, $limit, $date_after, $date_before );
+			$post_ids = $this->search_posts( $limit, $date_after, $date_before );
 
 			if ( empty( $post_ids ) ) {
 				\WP_CLI::warning( 'No posts found.' );
@@ -116,6 +107,24 @@ class DMG_Read_More_Command {
 		} catch ( \Exception $exception ) {
 			\WP_CLI::error( $exception->getMessage() );
 		}
+	}
+
+	/**
+	 * Get all post types that support the block editor.
+	 *
+	 * @return array Array of post type slugs that support the block editor.
+	 */
+	private function get_block_editor_post_types(): array {
+		$post_types = get_post_types( [ 'public' => true ], 'names' );
+		$block_editor_post_types = [];
+
+		foreach ( $post_types as $post_type ) {
+			if ( use_block_editor_for_post_type( $post_type ) ) {
+				$block_editor_post_types[] = $post_type;
+			}
+		}
+
+		return $block_editor_post_types;
 	}
 
 	/**
@@ -152,17 +161,20 @@ class DMG_Read_More_Command {
 	 * Execute post search and return post IDs containing DMG Read More blocks.
 	 *
 	 * Uses indexed meta query for optimal performance at scale.
+	 * Automatically searches across all post types that support the block editor.
 	 *
-	 * @param string      $post_type   The post type to search. Use 'any' for all post types.
 	 * @param int         $limit       Maximum number of results.
 	 * @param string|null $date_after  Posts published after this date (Y-m-d).
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
 	 * @return array Array of post IDs.
 	 */
-	private function search_posts( string $post_type = 'any', int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+	private function search_posts( int $limit = 10, ?string $date_after = null, ?string $date_before = null ): array {
+		// Get all post types that support the block editor
+		$post_types = $this->get_block_editor_post_types();
+
 		$query_args = [
 			self::QUERY_NAME => true,
-			'post_type'              => $post_type,
+			'post_type'              => $post_types,
 			'posts_per_page'         => $limit,
 			'post_status'            => 'publish',
 			'no_found_rows'          => true,

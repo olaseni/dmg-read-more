@@ -132,7 +132,7 @@ class DMG_Read_More_Command {
 			add_filter('pre_wp_load_alloptions', fn() => ['show_on_front' => '', 'comments_per_page' => 0]);
 
 			// Grouping impacts queries at this scale. We don't need it for 1-1 matching
-			//add_filter('posts_groupby', '__return_empty_string');
+			add_filter('posts_groupby', '__return_empty_string');
 		});
 	}
 

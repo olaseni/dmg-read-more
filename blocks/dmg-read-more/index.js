@@ -41,24 +41,32 @@ registerBlockType(blockType, {
 				// Check if search term is a number (post ID)
 				const isNumeric = /^\d+$/.test(search.trim());
 
-				// Use search endpoint to query across all post types
-				const queryArgs = {
-					per_page: postsPerPage,
-					page: page,
-					_fields: 'id,title,url,subtype',
-					subtype: 'any', // Search across all post types
-				};
+				let path;
 
 				if (isNumeric && search.trim()) {
-					// Search by post ID
-					queryArgs.search = search.trim();
-				} else if (search.trim()) {
-					// Search by text across all post types
-					queryArgs.search = search.trim();
-				}
-				// For default (no search), the endpoint returns posts without search parameter
+					// Search by post ID - use include parameter to find specific post
+					// This returns just the one post matching the ID
+					path = addQueryArgs('/wp/v2/search', {
+						include: search.trim(),
+						_fields: 'id,title,url,subtype',
+					});
+				} else {
+					// Use search endpoint to query across all post types
+					const queryArgs = {
+						per_page: postsPerPage,
+						page: page,
+						_fields: 'id,title,url,subtype',
+						subtype: 'any', // Search across all post types
+					};
 
-				const path = addQueryArgs('/wp/v2/search', queryArgs);
+					if (search.trim()) {
+						// Search by text across all post types
+						queryArgs.search = search.trim();
+					}
+					// For default (no search), the endpoint returns posts without search parameter
+
+					path = addQueryArgs('/wp/v2/search', queryArgs);
+				}
 
 				const response = await apiFetch({
 					path,

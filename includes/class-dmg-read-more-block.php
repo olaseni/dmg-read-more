@@ -138,9 +138,6 @@ class DMG_Read_More_Block {
 	 * @return array Modified arguments.
 	 */
 	public function optimize_rest_search_query( array $prepared_args, \WP_REST_Request $request ): array {
-		// Skip ordering for better performance - ordering is expensive with millions of posts
-		$prepared_args['orderby'] = 'none';
-
 		// Disable found rows calculation for better performance
 		$prepared_args['no_found_rows'] = true;
 

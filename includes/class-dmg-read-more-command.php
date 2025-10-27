@@ -131,10 +131,8 @@ class DMG_Read_More_Command {
 			// Prevent a DB trip for options that are not needed
 			add_filter('pre_wp_load_alloptions', fn() => ['show_on_front' => '', 'comments_per_page' => 0]);
 
-			// Ordering impacts queries at this scale. We don't need it. And for 1-1 matching,
-			// grouping is redundant as well
-			add_filter('posts_orderby', '__return_empty_string');
-			add_filter('posts_groupby', '__return_empty_string');
+			// Grouping impacts queries at this scale. We don't need it for 1-1 matching
+			//add_filter('posts_groupby', '__return_empty_string');
 		});
 	}
 
@@ -164,7 +162,8 @@ class DMG_Read_More_Command {
 			'update_post_term_cache' => false,
 			'ignore_sticky_posts'	 => true,
 			'meta_key' => DMG_Read_More_Block::META_FLAG,
-			'meta_value' => '1'
+			'meta_value' => '1',
+			'orderby'	=> 'none'
 		];
 
 		// Add date query if dates are provided

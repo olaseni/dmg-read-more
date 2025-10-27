@@ -41,6 +41,9 @@ class DMG_Read_More_Block {
 
 		// Hook to index block usage for efficient searching
 		add_action( 'save_post', [ $this, 'index_block_usage' ], 10, 2 );
+
+		// Optimize REST API search queries for the block editor
+		add_filter( 'rest_post_search_query', [ $this, 'optimize_rest_search_query' ], 10, 2 );
 	}
 
 	/**
@@ -123,6 +126,29 @@ class DMG_Read_More_Block {
 			esc_url( $permalink ),
 			esc_html( $title )
 		);
+	}
+
+	/**
+	 * Optimize REST API search queries for performance with millions of posts.
+	 *
+	 * Applied to the /wp/v2/search endpoint used by the block editor for post selection.
+	 *
+	 * @param array            $prepared_args Array of arguments for WP_Query.
+	 * @param \WP_REST_Request $request       The REST request object.
+	 * @return array Modified arguments.
+	 */
+	public function optimize_rest_search_query( array $prepared_args, \WP_REST_Request $request ): array {
+		// Skip ordering for better performance - ordering is expensive with millions of posts
+		$prepared_args['orderby'] = 'none';
+
+		// Disable found rows calculation for better performance
+		$prepared_args['no_found_rows'] = true;
+
+		// Disable unnecessary caches
+		$prepared_args['update_post_meta_cache'] = false;
+		$prepared_args['update_post_term_cache'] = false;
+
+		return $prepared_args;
 	}
 
 	/**

@@ -10,7 +10,6 @@ import {
 } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { useState, useEffect } from '@wordpress/element';
-import { useSelect } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
 
@@ -28,9 +27,10 @@ registerBlockType(blockType, {
 		const [searchTerm, setSearchTerm] = useState('');
 		const [currentPage, setCurrentPage] = useState(1);
 		const [posts, setPosts] = useState([]);
-		const [totalPages, setTotalPages] = useState(1);
+		const [hasMorePages, setHasMorePages] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
 		const [error, setError] = useState(null);
+		const [selectedPostData, setSelectedPostData] = useState(null);
 
 		// Fetch posts function
 		const fetchPosts = async (search = '', page = 1) => {
@@ -41,25 +41,24 @@ registerBlockType(blockType, {
 				// Check if search term is a number (post ID)
 				const isNumeric = /^\d+$/.test(search.trim());
 
-				let queryArgs = {
+				// Use search endpoint to query across all post types
+				const queryArgs = {
 					per_page: postsPerPage,
 					page: page,
-					_embed: true,
+					_fields: 'id,title,url,subtype',
+					subtype: 'any', // Search across all post types
 				};
 
 				if (isNumeric && search.trim()) {
 					// Search by post ID
-					queryArgs.include = [parseInt(search.trim())];
+					queryArgs.search = search.trim();
 				} else if (search.trim()) {
 					// Search by text across all post types
 					queryArgs.search = search.trim();
-				} else {
-					// Default: recent posts
-					queryArgs.orderby = 'date';
-					queryArgs.order = 'desc';
 				}
+				// For default (no search), the endpoint returns posts without search parameter
 
-				const path = addQueryArgs('/wp/v2/posts', queryArgs);
+				const path = addQueryArgs('/wp/v2/search', queryArgs);
 
 				const response = await apiFetch({
 					path,
@@ -67,10 +66,13 @@ registerBlockType(blockType, {
 				});
 
 				const postsData = await response.json();
-				const total = response.headers.get('X-WP-TotalPages');
+
+				// Determine if there are more pages based on result count
+				// If we got a full page, assume there might be more
+				const hasMore = postsData.length === postsPerPage;
 
 				setPosts(postsData);
-				setTotalPages(parseInt(total) || 1);
+				setHasMorePages(hasMore);
 			} catch (err) {
 				setError(err.message || __('Failed to fetch posts', 'dmg-read-more'));
 				setPosts([]);
@@ -89,21 +91,37 @@ registerBlockType(blockType, {
 			return () => clearTimeout(timer);
 		}, [searchTerm, postsPerPage]);
 
-		// Pagination effect
+		// Pagination effect - fetch when page changes (but skip initial mount which search effect handles)
+		const isInitialMount = currentPage === 1 && posts.length === 0;
 		useEffect(() => {
-			if (currentPage > 1) {
+			if (!isInitialMount) {
 				fetchPosts(searchTerm, currentPage);
 			}
 		}, [currentPage]);
 
-		// Fetch selected post details for display
-		const selectedPost = useSelect(
-			(select) => {
-				if (postId === 0) return null;
-				return select('core').getEntityRecord('postType', 'post', postId);
-			},
-			[postId]
-		);
+		// Get selected post from in-memory data (no need for API call)
+		const selectedPost = posts.find(post => post.id === postId) || selectedPostData;
+
+		// Update selected post data when postId changes and not in current posts list
+		useEffect(() => {
+			if (postId && !posts.find(post => post.id === postId) && selectedPostData?.id !== postId) {
+				// Fetch only if we don't have it in memory
+				apiFetch({
+					path: addQueryArgs('/wp/v2/search', {
+						include: postId,
+						_fields: 'id,title,url,subtype',
+					}),
+				})
+					.then(data => {
+						if (data && data.length > 0) {
+							setSelectedPostData(data[0]);
+						}
+					})
+					.catch(() => {
+						setSelectedPostData(null);
+					});
+			}
+		}, [postId, posts]);
 
 		// Pagination handlers
 		const handlePrevPage = () => {
@@ -113,7 +131,7 @@ registerBlockType(blockType, {
 		};
 
 		const handleNextPage = () => {
-			if (currentPage < totalPages) {
+			if (hasMorePages) {
 				setCurrentPage(currentPage + 1);
 			}
 		};
@@ -195,7 +213,7 @@ registerBlockType(blockType, {
 												<span style={{ marginRight: '8px' }}>✓</span>
 											)}
 											<span
-												dangerouslySetInnerHTML={{ __html: post.title.rendered }}
+												dangerouslySetInnerHTML={{ __html: post.title }}
 												style={{ flex: 1 }}
 											/>
 											<span style={{
@@ -203,7 +221,7 @@ registerBlockType(blockType, {
 												opacity: 0.7,
 												marginLeft: '8px'
 											}}>
-												({post.type})
+												({post.subtype})
 											</span>
 										</Button>
 									))}
@@ -211,7 +229,7 @@ registerBlockType(blockType, {
 							)}
 
 							{/* Pagination Controls */}
-							{!isLoading && totalPages > 1 && (
+							{!isLoading && posts.length > 0 && (currentPage > 1 || hasMorePages) && (
 								<div style={{
 									display: 'flex',
 									justifyContent: 'space-between',
@@ -229,12 +247,12 @@ registerBlockType(blockType, {
 										{__('Previous', 'dmg-read-more')}
 									</Button>
 									<span style={{ fontSize: '0.9em' }}>
-										{__('Page', 'dmg-read-more')} {currentPage} {__('of', 'dmg-read-more')} {totalPages}
+										{__('Page', 'dmg-read-more')} {currentPage}
 									</span>
 									<Button
 										variant="secondary"
 										onClick={handleNextPage}
-										disabled={currentPage === totalPages}
+										disabled={!hasMorePages}
 										size="small"
 									>
 										{__('Next', 'dmg-read-more')}
@@ -252,11 +270,7 @@ registerBlockType(blockType, {
 								{__('Select a post to display a Read More link', 'dmg-read-more')}
 							</p>
 						</div>
-					) : selectedPost === undefined ? (
-						<div style={{ textAlign: 'center', padding: '10px' }}>
-							<Spinner />
-						</div>
-					) : selectedPost === null ? (
+					) : !selectedPost ? (
 						<div className="dmg-read-more-error">
 							<p>
 								{__('Selected post is not available', 'dmg-read-more')}
@@ -265,10 +279,10 @@ registerBlockType(blockType, {
 					) : (
 						<p className="dmg-read-more">
 							<a
-								href={selectedPost.link}
+								href={selectedPost.url}
 								onClick={(e) => e.preventDefault()}
 							>
-								{__('Read More:', 'dmg-read-more')} {selectedPost.title.rendered}
+								{__('Read More:', 'dmg-read-more')} {selectedPost.title}
 							</a>
 						</p>
 					)}

@@ -35,8 +35,8 @@ class DMG_Read_More_Command {
 	 * [--date-before=<date>]
 	 * : Only include posts published before this date (Y-m-d format). Default: today
 	 *
-	 * [--debug-sql]
-	 * : Log SQL queries to console for debugging.
+	 * [--batch-size=<number>]
+	 * : Number of posts to process per batch. Default: 100000
 	 *
 	 * ## EXAMPLES
 	 *
@@ -49,20 +49,29 @@ class DMG_Read_More_Command {
 	 *     # All posts with block across all post types, all time
 	 *     wp dmg-read-more search --date-after=2020-01-01
 	 *
-	 *     # Debug SQL query performance
-	 *     wp dmg-read-more search --debug-sql
+	 *     # Debug SQL query performance and show post count (using WP-CLI global --debug flag)
+	 *     wp dmg-read-more search --debug
+	 *
+	 *     # Process with larger batch size
+	 *     wp dmg-read-more search --batch-size=50000
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
 	 */
 	public function search( array $args, array $assoc_args ): void {
-		$debug_sql = isset( $assoc_args['debug-sql'] );
-		$this->activate_filters( $debug_sql );
+		$this->activate_filters();
 
 		// Default to last 30 days if dates not provided
 		$date_after  = $assoc_args['date-after'] ?? date( 'Y-m-d', strtotime( '-30 days' ) );
 		$date_before = $assoc_args['date-before'] ?? date( 'Y-m-d' );
+		$batch_size  = isset( $assoc_args['batch-size'] ) ? absint( $assoc_args['batch-size'] ) : 100000;
+
+		// Validate batch size
+		if ( $batch_size < 1 ) {
+			\WP_CLI::error( 'Batch size must be a positive integer.' );
+			return;
+		}
 
 		// Validate date formats
 		if ( ! $this->validate_date( $date_after ) ) {
@@ -82,14 +91,7 @@ class DMG_Read_More_Command {
 		}
 
 		try {
-			$post_ids = $this->search_posts( $date_after, $date_before );
-
-			if ( empty( $post_ids ) ) {
-				\WP_CLI::warning( 'No posts found.' );
-				return;
-			}
-
-			\WP_CLI::log( join( ',', $post_ids ) );
+			$this->search_posts( $date_after, $date_before, $batch_size );
 		} catch ( \Exception $exception ) {
 			\WP_CLI::error( $exception->getMessage() );
 		}
@@ -116,30 +118,23 @@ class DMG_Read_More_Command {
 	/**
 	 * Activate filters that are needed to modify the WP_Query for performance
 	 *
-	 * @param bool $debug_sql Whether to log SQL queries to console.
 	 * @return void
 	 */
-	private function activate_filters( bool $debug_sql = false ): void
+	private function activate_filters(): void
 	{
-		add_action('pre_get_posts', function ($query) use ( $debug_sql ) {
+		add_action('pre_get_posts', function ($query) {
 			// Target only this named query
 			if (! $query->get(self::QUERY_NAME)) {
 				return;
 			}
 
+			// Prevent a DB trip for options that are not needed
+			add_filter('pre_wp_load_alloptions', fn() => ['show_on_front' => '', 'comments_per_page' => 0]);
+
 			// Ordering impacts queries at this scale. We don't need it. And for 1-1 matching,
 			// grouping is redundant as well
 			add_filter('posts_orderby', '__return_empty_string');
 			add_filter('posts_groupby', '__return_empty_string');
-
-			if ( $debug_sql ) {
-				add_filter('query', function ($query) {
-					// Capture all queries (no filtering)
-					$query_single_line = preg_replace('/\s+/', ' ', $query);
-					\WP_CLI::log('SQL: ' . $query_single_line . PHP_EOL);
-					return $query;
-				});
-			}
 		});
 	}
 
@@ -152,27 +147,24 @@ class DMG_Read_More_Command {
 	 *
 	 * @param string|null $date_after  Posts published after this date (Y-m-d).
 	 * @param string|null $date_before Posts published before this date (Y-m-d).
-	 * @return array Array of post IDs.
+	 * @param int         $batch_size  Number of posts to process per batch.
 	 */
-	private function search_posts( ?string $date_after = null, ?string $date_before = null ): array {
+	private function search_posts( ?string $date_after = null, ?string $date_before = null, int $batch_size = 100000 ): void {
 		// Get all post types that support the block editor
 		$post_types = $this->get_block_editor_post_types();
 
 		$query_args = [
 			self::QUERY_NAME => true,
 			'post_type'              => $post_types,
-			'posts_per_page'         => -1, // Return all matching posts
+			'posts_per_page'         => $batch_size,
 			'post_status'            => 'publish',
-			'no_found_rows'          => true,
 			'fields'                 => 'ids',
+			'no_found_rows'          => true,
 			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
-			'meta_query'             => [
-				[
-					'key'   => DMG_Read_More_Block::META_FLAG,
-					'value' => '1',
-				],
-			],
+			'ignore_sticky_posts'	 => true,
+			'meta_key' => DMG_Read_More_Block::META_FLAG,
+			'meta_value' => '1'
 		];
 
 		// Add date query if dates are provided
@@ -194,9 +186,42 @@ class DMG_Read_More_Command {
 			}
 		}
 
-		$query = new \WP_Query( $query_args );
+		$posts_count = 0;
+		$paged = 1;
 
-		return $query->posts;
+		$config = \WP_CLI::get_runner()->config ?? ['debug' => false];
+		$is_debug_mode = $config['debug'] ?? false;
+
+		for(;;){
+			$query = new \WP_Query( $query_args + [ 'paged' => $paged++ ] );
+			$current_post_count = count($query->posts);
+			$posts_count += $current_post_count;
+			
+			if ($posts_count){
+				foreach ($query->posts as $post_id) {
+					\WP_CLI::line($post_id);
+				}
+			}
+
+			$may_have_more_posts = $query->have_posts() && $current_post_count === $batch_size;
+
+			wp_reset_postdata();
+			wp_cache_flush();
+			
+			if ( $is_debug_mode ) {
+				\WP_CLI::log('SQL: ' . preg_replace('/\s+/', ' ', $query->request));
+			}
+			if(! $may_have_more_posts){
+				break;
+			}
+		}
+
+		if ( $posts_count === 0 ) {
+			\WP_CLI::warning( 'No posts found.' );
+			return;
+		} else if ( $is_debug_mode ) {
+			\WP_CLI::log( sprintf( 'Found %s posts', number_format( $posts_count ) ) );
+		}
 	}
 
 	/**

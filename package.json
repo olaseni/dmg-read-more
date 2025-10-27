@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "start": "wp-env start --update",
+    "stop": "wp-env stop",
+    "package:plugin": "./tools/package-plugin.sh",
+    "build:blocks": "wp-scripts build --webpack-src-dir=blocks",
+    "cli:search": "wp-env run cli -- wp dmg-read-more search",
+    "cli:search-reindex": "wp-env run cli wp dmg-read-more reindex",
+    "cli:db": "wp-env run cli wp db cli",
+    "clean": "rm -fr node_modules",
+    "clean:builds": "rm -fr build",
+    "clean:data": "wp-env clean all",
+    "seed-posts": "wp-env run cli /var/www/html/wp-content/plugins/wp-search-posts-plugin/tools/seed-million-posts.sh"
+  },
+  "devDependencies": {
+    "@wordpress/env": "^10.33.0",
+    "@wordpress/scripts": "^30.26.0"
+  }
+}
